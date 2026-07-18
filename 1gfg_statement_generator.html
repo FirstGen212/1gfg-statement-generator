@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>1GFG Employee Deduction Statement Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --brand: #2990E9;
+    --brand-dark: #1A2B3C;
+    --accent-fill: #E8F1FC;
+    --border: #D5DEE8;
+    --text-secondary: #5B6B7C;
+    --danger: #C00000;
+    --danger-bg: #FBEAEA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: #F4F7FA;
+    color: var(--brand-dark);
+    margin: 0;
+    padding: 32px 16px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px; }
+  .card {
+    background: #fff;
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+  .rules { font-size: 13px; color: var(--text-secondary); line-height: 1.7; margin: 0; padding-left: 18px; }
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.drag { border-color: var(--brand); background: var(--accent-fill); }
+  #dropzone p { margin: 6px 0; color: var(--text-secondary); font-size: 14px; }
+  #dropzone .big { font-size: 16px; font-weight: 700; color: var(--brand-dark); }
+  #fileInput { display: none; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    padding: 10px 18px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: #1f7ad6; }
+  .btn-secondary { background: #fff; border: 1px solid var(--border); color: var(--brand-dark); }
+  .btn-secondary:hover { background: #F4F7FA; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 0.5px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .02em; }
+  td.num, th.num { text-align: right; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--accent-fill); border-radius: 10px; padding: 14px 16px; }
+  .stat .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat .value { font-size: 22px; font-weight: 700; color: var(--brand-dark); }
+  .stat.warn { background: var(--danger-bg); }
+  .stat.warn .value { color: var(--danger); }
+  .dl-link { color: var(--brand); font-weight: 700; text-decoration: none; cursor: pointer; font-size: 13px; }
+  .dl-link:hover { text-decoration: underline; }
+  #status { font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
+  #error { font-size: 13px; color: var(--danger); background: var(--danger-bg); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
+  .hidden { display: none; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>1GFG Employee Deduction Statement Generator</h1>
+  <p class="sub">Upload a census file, get one branded PDF statement per company plus a data-review report. Everything runs in your browser — no file ever leaves this page.</p>
+
+  <div class="card">
+    <h2>How it rolls up</h2>
+    <ul class="rules">
+      <li><b>Virtual</b> = every row's SIMERP price, summed</li>
+      <li><b>In-Person</b> = FGP Amount for rows tagged MEC or MEC+, summed</li>
+      <li><b>Wholelife</b> = Eligible Policy amount, summed</li>
+      <li>Companies with "test" in the name are skipped entirely</li>
+      <li>Rows missing SIMERP or FGP are held back and listed in a Needs Review PDF (a missing Employee ID alone does not hold a row back)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>1. Upload your file</h2>
+    <div id="dropzone">
+      <p class="big">Drop your .xlsx or .csv here</p>
+      <p>or click to browse — needs columns: Company, First Name, Last Name, Status, Employee ID, SIMERP, FGP, FGP Amount, Policy Provider, Eligible Policy</p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div id="status"></div>
+    <div id="error"></div>
+  </div>
+
+  <div class="card hidden" id="resultsCard">
+    <h2>2. Results</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">Companies</div><div class="value" id="statCompanies">0</div></div>
+      <div class="stat"><div class="label">Total employees billed</div><div class="value" id="statEmployees">0</div></div>
+      <div class="stat"><div class="label">Grand total</div><div class="value" id="statTotal">$0</div></div>
+      <div class="stat warn"><div class="label">Rows flagged for review</div><div class="value" id="statFlagged">0</div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="downloadAllBtn">Download all statements (ZIP)</button>
+      <button class="btn-secondary" id="downloadReviewBtn">Download needs-review PDF</button>
+    </div>
+    <div style="margin-top:20px; max-height:420px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>Company</th><th class="num">Employees</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="companyTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const REQUIRED_COLS = ["Company","First Name","Last Name","Status","Employee ID","SIMERP","FGP","FGP Amount","Policy Provider","Eligible Policy"];
+const BRAND_HEX = [41, 144, 233];
+const ACCENT_FILL_HEX = [232, 241, 252];
+const DARK_HEX = [26, 43, 60];
+
+const COMPANY_INFO = {
+  name: "First Gen Health",
+  address: ["123 Placeholder St, Suite 100", "Jamesville, NY 13078"],
+  contact: "billing@1gfg.com | (555) 555-0100"
+};
+
+let state = null;
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const errorEl = document.getElementById('error');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.display = 'block';
+}
+function clearError() {
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+}
+function setStatus(msg) {
+  statusEl.innerHTML = msg;
+}
+
+function normalize(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function findCol(headers, target) {
+  const nt = normalize(target);
+  for (const h of headers) if (normalize(h) === nt) return h;
+  return null;
+}
+
+function handleFile(file) {
+  clearError();
+  setStatus('<span class="spinner"></span>Reading file…');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type: 'array'});
+      const sheetName = wb.SheetNames.includes('Census') ? 'Census' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval: null});
+      if (!rows.length) { showError('No rows found in the file.'); setStatus(''); return; }
+
+      const headers = Object.keys(rows[0]);
+      const colmap = {};
+      const missing = [];
+      for (const target of REQUIRED_COLS) {
+        const found = findCol(headers, target);
+        if (found) colmap[target] = found; else missing.push(target);
+      }
+      if (missing.length) {
+        showError('Missing required column(s): ' + missing.join(', ') + '. Found columns: ' + headers.join(', '));
+        setStatus('');
+        return;
+      }
+
+      setStatus('<span class="spinner"></span>Processing rows…');
+      setTimeout(() => processRows(rows, colmap), 30);
+    } catch (err) {
+      showError('Could not read this file: ' + err.message);
+      setStatus('');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function num(v) {
+  if (v === null || v === undefined || v === '') return NaN;
+  const n = parseFloat(v);
+  return isNaN(n) ? NaN : n;
+}
+
+function processRows(rawRows, colmap) {
+  const rows = rawRows.map(r => ({
+    Company: r[colmap.Company],
+    FirstName: r[colmap['First Name']],
+    LastName: r[colmap['Last Name']],
+    Status: r[colmap.Status],
+    EmployeeID: r[colmap['Employee ID']],
+    SIMERP: r[colmap.SIMERP],
+    FGP: r[colmap.FGP],
+    FGPAmount: r[colmap['FGP Amount']],
+    PolicyProvider: r[colmap['Policy Provider']],
+    EligiblePolicy: r[colmap['Eligible Policy']],
+  })).filter(r => r.Company !== null && r.Company !== undefined && String(r.Company).trim() !== '');
+
+  const testExcluded = rows.filter(r => /test/i.test(String(r.Company)));
+  const nonTest = rows.filter(r => !/test/i.test(String(r.Company)));
+
+  const excluded = [];
+  const valid = [];
+  for (const r of nonTest) {
+    const missingSimerp = isNaN(num(r.SIMERP));
+    const missingFgp = r.FGP === null || r.FGP === undefined || String(r.FGP).trim() === '';
+    if (missingSimerp || missingFgp) {
+      const missing = [];
+      if (missingSimerp) missing.push('SIMERP');
+      if (missingFgp) missing.push('FGP');
+      excluded.push({...r, Missing: missing.join(', ')});
+    } else {
+      valid.push(r);
+    }
+  }
+
+  const byCompany = {};
+  for (const r of valid) {
+    const c = String(r.Company).trim();
+    (byCompany[c] = byCompany[c] || []).push(r);
+  }
+
+  const companies = Object.keys(byCompany).sort((a,b) => a.localeCompare(b));
+  const companySummaries = companies.map(c => {
+    const sub = byCompany[c];
+    const summary = computeSummary(sub);
+    return {company: c, rows: sub, summary};
+  });
+
+  state = {companies: companySummaries, excluded, testExcludedCount: testExcluded.length};
+  renderResults(state);
+  setStatus('Done. ' + companies.length + ' companies ready.');
+}
+
+function computeSummary(sub) {
+  const simerpVals = sub.map(r => num(r.SIMERP)).filter(v => !isNaN(v));
+  const nVirtual = simerpVals.length;
+  const virtualTotal = simerpVals.reduce((a,b) => a+b, 0);
+  const uniqSimerp = [...new Set(simerpVals)];
+  const virtualPriceDisp = uniqSimerp.length === 1 && nVirtual ? ('$' + uniqSimerp[0].toFixed(2)) : 'Varies';
+
+  const inPersonRows = sub.filter(r => ['MEC','MEC+'].includes(String(r.FGP).trim().toUpperCase()));
+  const inPersonAmts = inPersonRows.map(r => num(r.FGPAmount)).filter(v => !isNaN(v));
+  const nInPerson = inPersonAmts.length;
+  const inPersonTotal = inPersonAmts.reduce((a,b) => a+b, 0);
+  const uniqFgp = [...new Set(inPersonAmts)];
+  const inPersonPriceDisp = uniqFgp.length === 1 && nInPerson ? ('$' + uniqFgp[0].toFixed(2)) : 'Varies';
+
+  const wholelifeVals = sub.map(r => num(r.EligiblePolicy)).filter(v => !isNaN(v) && v > 0);
+  const nWholelife = wholelifeVals.length;
+  const wholelifeTotal = wholelifeVals.reduce((a,b) => a+b, 0);
+
+  const grandTotal = virtualTotal + inPersonTotal + wholelifeTotal;
+  return {
+    rows: [
+      {name: 'Virtual', count: nVirtual, priceDisp: virtualPriceDisp, total: virtualTotal},
+      {name: 'In-Person', count: nInPerson, priceDisp: inPersonPriceDisp, total: inPersonTotal},
+      {name: 'Wholelife', count: nWholelife, priceDisp: 'Varies', total: wholelifeTotal},
+    ],
+    grandTotal,
+    employeeCount: sub.length,
+  };
+}
+
+function fmtMoney(n) {
+  return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function renderResults(st) {
+  document.getElementById('resultsCard').classList.remove('hidden');
+  const totalEmployees = st.companies.reduce((a,c) => a + c.summary.employeeCount, 0);
+  const grandTotal = st.companies.reduce((a,c) => a + c.summary.grandTotal, 0);
+  document.getElementById('statCompanies').textContent = st.companies.length;
+  document.getElementById('statEmployees').textContent = totalEmployees.toLocaleString('en-US');
+  document.getElementById('statTotal').textContent = fmtMoney(grandTotal);
+  document.getElementById('statFlagged').textContent = st.excluded.length;
+
+  const tbody = document.getElementById('companyTableBody');
+  tbody.innerHTML = '';
+  st.companies.forEach((c, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(c.company)}</td>
+      <td class="num">${c.summary.employeeCount}</td>
+      <td class="num">${fmtMoney(c.summary.grandTotal)}</td>
+      <td><a class="dl-link" data-idx="${idx}">Download PDF</a></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.dl-link').forEach(link => {
+    link.addEventListener('click', () => {
+      const idx = parseInt(link.getAttribute('data-idx'));
+      const c = st.companies[idx];
+      const doc = buildStatementPDF(c.company, c.rows, c.summary);
+      doc.save(safeFilename(c.company) + '.pdf');
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function safeFilename(s) {
+  return String(s).replace(/[\\/:*?"<>|]/g, '_').trim();
+}
+function statementNumber(company) {
+  const now = new Date();
+  const ym = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0');
+  const slug = String(company).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
+  return '1GFG-' + ym + '-' + slug;
+}
+function statementDateStr() {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+}
+
+function drawHeader(doc, company) {
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK_HEX);
+  doc.text(COMPANY_INFO.name, 40, 44);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(90,90,90);
+  doc.text(COMPANY_INFO.address[0], 40, 58);
+  doc.text(COMPANY_INFO.address[1], 40, 70);
+  doc.text(COMPANY_INFO.contact, 40, 82);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...BRAND_HEX);
+  doc.text('EMPLOYEE', 572, 44, {align:'right'});
+  doc.text('DEDUCTION', 572, 62, {align:'right'});
+  doc.text('STATEMENT', 572, 80, {align:'right'});
+
+  doc.setDrawColor(...BRAND_HEX);
+  doc.setLineWidth(1.5);
+  doc.line(40, 96, 572, 96);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Statement To:', 40, 118);
+  doc.setFont('helvetica','normal');
+  doc.text(String(company), 40, 132);
+
+  doc.setFont('helvetica','bold');
+  doc.text('Statement #: ', 400, 118);
+  doc.setFont('helvetica','normal');
+  doc.text(statementNumber(company), 572, 118, {align:'right'});
+  doc.setFont('helvetica','bold');
+  doc.text('Statement Date: ', 400, 132);
+  doc.setFont('helvetica','normal');
+  doc.text(statementDateStr(), 572, 132, {align:'right'});
+
+  return 160;
+}
+
+function buildStatementPDF(company, rows, summary) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+
+  let y = drawHeader(doc, company);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Summary', 40, y);
+  y += 14;
+
+  const body = summary.rows.map(r => [r.name, String(r.count), r.priceDisp, fmtMoney(r.total)]);
+  body.push(['', '', 'GRAND TOTAL', fmtMoney(summary.grandTotal)]);
+
+  doc.autoTable({
+    startY: y,
+    margin: {left:40, right:40},
+    head: [['Product','Member #','Price','Total']],
+    body: body,
+    styles: {font:'helvetica', fontSize:10, cellPadding:6},
+    headStyles: {fillColor: BRAND_HEX, textColor:255, fontStyle:'bold'},
+    columnStyles: {1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+    didParseCell: function(data) {
+      if (data.row.index === body.length - 1 && data.row.section === 'body') {
+        data.cell.styles.fillColor = ACCENT_FILL_HEX;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+
+  const afterY = doc.lastAutoTable.finalY + 20;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(120,120,120);
+  doc.text('Payment due within 30 days of statement date. Remit to First Gen Health. Questions? billing@1gfg.com.', 40, afterY);
+
+  doc.addPage();
+  let y2 = drawHeader(doc, company);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Detailed Line Items', 40, y2);
+  y2 += 14;
+
+  const detailBody = rows.map(r => {
+    const simerp = num(r.SIMERP);
+    const fgpAmt = num(r.FGPAmount);
+    const elig = num(r.EligiblePolicy);
+    return [
+      r.EmployeeID ? String(r.EmployeeID) : '-',
+      r.FirstName || '', r.LastName || '',
+      isNaN(simerp) ? '-' : ('$'+simerp.toFixed(2)),
+      r.FGP || '',
+      isNaN(fgpAmt) ? '-' : ('$'+fgpAmt.toFixed(2)),
+      r.PolicyProvider || '-',
+      isNaN(elig) ? '-' : ('$'+elig.toFixed(2)),
+      r.Status || '',
+    ];
+  });
+
+  doc.autoTable({
+    startY: y2,
+    margin: {left:40, right:40},
+    head: [['Employee ID','First Name','Last Name','SIMERP','FGP','FGP Amount','Policy Provider','Eligible Policy','Status']],
+    body: detailBody,
+    styles: {font:'helvetica', fontSize:7.5, cellPadding:4},
+    headStyles: {fillColor: BRAND_HEX, textColor:255, fontStyle:'bold'},
+    columnStyles: {3:{halign:'right'},5:{halign:'right'},7:{halign:'right'}},
+    alternateRowStyles: {fillColor: [246,249,252]},
+  });
+
+  return doc;
+}
+
+function buildReviewPDF(excluded) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(192,0,0);
+  doc.text('Needs Review — Excluded From Statements', 40, 50);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(60,60,60);
+  const msg = `Generated ${statementDateStr()}. ${excluded.length} row(s) are missing SIMERP or FGP and were excluded from company totals and statements. Fix the source data and rerun.`;
+  const msgLines = doc.splitTextToSize(msg, 500);
+  doc.text(msgLines, 40, 72);
+
+  let y = 72 + msgLines.length * 12 + 16;
+  if (excluded.length === 0) {
+    doc.text('No incomplete rows found.', 40, y);
+  } else {
+    const byCompany = {};
+    for (const r of excluded) (byCompany[r.Company] = byCompany[r.Company] || []).push(r);
+    const companies = Object.keys(byCompany).sort((a,b)=>a.localeCompare(b));
+    for (const c of companies) {
+      const sub = byCompany[c];
+      if (y > 700) { doc.addPage(); y = 50; }
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.setTextColor(26,43,60);
+      doc.text(`${c} (${sub.length} row(s))`, 40, y);
+      y += 8;
+      doc.autoTable({
+        startY: y,
+        margin: {left:40, right:40},
+        head: [['Employee ID','First Name','Last Name','Missing']],
+        body: sub.map(r => [r.EmployeeID ? String(r.EmployeeID) : '-', r.FirstName||'', r.LastName||'', r.Missing]),
+        styles: {font:'helvetica', fontSize:8.5, cellPadding:4},
+        headStyles: {fillColor:[242,210,210], textColor:[60,20,20], fontStyle:'bold'},
+      });
+      y = doc.lastAutoTable.finalY + 20;
+    }
+  }
+  return doc;
+}
+
+document.getElementById('downloadReviewBtn').addEventListener('click', () => {
+  if (!state) return;
+  const doc = buildReviewPDF(state.excluded);
+  doc.save('Needs_Review.pdf');
+});
+
+document.getElementById('downloadAllBtn').addEventListener('click', () => {
+  if (!state) return;
+  const btn = document.getElementById('downloadAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Building ZIP…';
+  setTimeout(buildAndDownloadZip, 30);
+});
+
+async function buildAndDownloadZip() {
+  const btn = document.getElementById('downloadAllBtn');
+  const zip = new JSZip();
+  for (const c of state.companies) {
+    const doc = buildStatementPDF(c.company, c.rows, c.summary);
+    const blob = doc.output('blob');
+    zip.file(safeFilename(c.company) + '.pdf', blob);
+  }
+  const reviewDoc = buildReviewPDF(state.excluded);
+  zip.file('Needs_Review.pdf', reviewDoc.output('blob'));
+
+  const content = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '1GFG_Deduction_Statements.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  btn.disabled = false;
+  btn.textContent = 'Download all statements (ZIP)';
+}
+</script>
+</body>
+</html>
