@@ -387,16 +387,19 @@ function drawHeader(doc, company) {
   doc.setFont('helvetica','normal');
   doc.text(String(company), 40, 132);
 
-  doc.setFont('helvetica','bold');
-  doc.text('Statement #: ', 400, 118);
-  doc.setFont('helvetica','normal');
-  doc.text(statementNumber(company), 572, 118, {align:'right'});
-  doc.setFont('helvetica','bold');
-  doc.text('Statement Date: ', 400, 132);
-  doc.setFont('helvetica','normal');
-  doc.text(statementDateStr(), 572, 132, {align:'right'});
+  drawLabelValueRight(doc, 'Statement #: ', statementNumber(company), 572, 118);
+  drawLabelValueRight(doc, 'Statement Date: ', statementDateStr(), 572, 136);
 
-  return 160;
+  return 168;
+}
+
+function drawLabelValueRight(doc, label, value, xRight, y) {
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  const valueWidth = doc.getTextWidth(value);
+  doc.text(value, xRight, y, {align: 'right'});
+  doc.setFont('helvetica','bold');
+  doc.text(label, xRight - valueWidth - 2, y, {align: 'right'});
 }
 
 function buildStatementPDF(company, rows, summary) {
