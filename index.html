@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>1GFG Employee Deduction Statement Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --brand: #2990E9;
+    --brand-dark: #1A2B3C;
+    --accent-fill: #E8F1FC;
+    --border: #D5DEE8;
+    --text-secondary: #5B6B7C;
+    --danger: #C00000;
+    --danger-bg: #FBEAEA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: #F4F7FA;
+    color: var(--brand-dark);
+    margin: 0;
+    padding: 32px 16px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px; }
+  .card {
+    background: #fff;
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+  .rules { font-size: 13px; color: var(--text-secondary); line-height: 1.7; margin: 0; padding-left: 18px; }
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.drag { border-color: var(--brand); background: var(--accent-fill); }
+  #dropzone p { margin: 6px 0; color: var(--text-secondary); font-size: 14px; }
+  #dropzone .big { font-size: 16px; font-weight: 700; color: var(--brand-dark); }
+  #fileInput { display: none; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    padding: 10px 18px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: #1f7ad6; }
+  .btn-secondary { background: #fff; border: 1px solid var(--border); color: var(--brand-dark); }
+  .btn-secondary:hover { background: #F4F7FA; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 0.5px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .02em; }
+  td.num, th.num { text-align: right; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--accent-fill); border-radius: 10px; padding: 14px 16px; }
+  .stat .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat .value { font-size: 22px; font-weight: 700; color: var(--brand-dark); }
+  .stat.warn { background: var(--danger-bg); }
+  .stat.warn .value { color: var(--danger); }
+  .dl-link { color: var(--brand); font-weight: 700; text-decoration: none; cursor: pointer; font-size: 13px; }
+  .dl-link:hover { text-decoration: underline; }
+  #status { font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
+  #error { font-size: 13px; color: var(--danger); background: var(--danger-bg); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
+  .hidden { display: none; }
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text-secondary); margin-top: 14px; cursor: pointer;
+  }
+  .checkbox-row input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+  table.rollup { font-size: 12px; border-collapse: collapse; white-space: nowrap; }
+  table.rollup th, table.rollup td { border: 0.5px solid var(--border); padding: 6px 10px; }
+  table.rollup thead tr.group-row th { background: var(--accent-fill); color: var(--brand); font-size: 11px; text-align: center; }
+  table.rollup thead tr.col-row th { background: #F4F7FA; color: var(--text-secondary); font-size: 10.5px; text-transform: uppercase; }
+  table.rollup td.name { color: var(--brand); font-weight: 700; text-align: left; white-space: normal; max-width: 180px; }
+  table.rollup td.num { text-align: right; }
+  table.rollup td.sub { color: #6B3FA0; font-weight: 700; text-align: right; }
+  table.rollup td.dash { color: #B6BFC8; text-align: right; }
+  table.rollup tr.page-subtotal td { background: var(--accent-fill); font-weight: 700; color: var(--brand-dark); }
+  table.rollup tr.grand-total td { background: #D7E6FB; font-weight: 700; color: var(--brand-dark); border-top: 2px solid var(--brand); }
+  table.rollup td.total-col { color: var(--brand-dark); font-weight: 700; text-align: right; }
+  .dash-text { color: #B6BFC8; }
+  .status-warning {
+    background: var(--danger-bg); color: var(--danger); font-size: 13px;
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600;
+  }
+  .date-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .date-row input[type="date"] {
+    font-family: inherit; font-size: 14px; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: 8px; color: var(--brand-dark);
+  }
+  #dateConfirmedBadge { font-size: 13px; color: #1a8f4c; font-weight: 600; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>1GFG Employee Deduction Statement Generator</h1>
+  <p class="sub">Upload a census file, get one branded PDF statement per company plus a data-review report. Everything runs in your browser — no file ever leaves this page.</p>
+
+  <div class="card">
+    <h2>How it rolls up</h2>
+    <ul class="rules">
+      <li><b>Virtual</b> = every row's SIMERP price, summed</li>
+      <li><b>In-Person</b> = FGP Amount for rows tagged MEC or MEC+, summed</li>
+      <li><b>Wholelife</b> = Eligible Policy amount, summed</li>
+      <li>Companies with "test" in the name are skipped entirely</li>
+      <li>Rows missing SIMERP or FGP are held back and listed in a Needs Review PDF (a missing Employee ID alone does not hold a row back)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>1. Statement date</h2>
+    <p class="sub" style="margin-bottom:12px;">Defaults to today. Change this to backdate statements — it controls both the printed "Statement Date" and the statement number (e.g. 1GFG-202606-...).</p>
+    <div class="date-row">
+      <input type="date" id="statementDateInput">
+      <button class="btn-secondary" id="confirmDateBtn">Use this date</button>
+      <span id="dateConfirmedBadge" class="hidden">✓ Confirmed: <b id="dateConfirmedText"></b></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Upload your file</h2>
+    <div id="dropzone">
+      <p class="big">Drop your .xlsx or .csv here</p>
+      <p>or click to browse — needs columns: Company, First Name, Last Name, Status, Employee ID, SIMERP, FGP, FGP Amount, Policy Provider, Eligible Policy</p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <label class="checkbox-row">
+      <input type="checkbox" id="rollupToggle">
+      Generate Whole 1GFG Rollup instead (one line per company, broken down by product)
+    </label>
+    <div id="status"></div>
+    <div id="error"></div>
+  </div>
+
+  <div class="card hidden" id="resultsCard">
+    <h2>3. Results</h2>
+    <div class="stat-grid" id="statGrid">
+      <div class="stat"><div class="label">Companies</div><div class="value" id="statCompanies">0</div></div>
+      <div class="stat"><div class="label">Total employees billed</div><div class="value" id="statEmployees">0</div></div>
+
+      <div class="stat"><div class="label">Grand total</div><div class="value" id="statTotal">$0</div></div>
+      <div class="stat warn"><div class="label">Rows flagged for review</div><div class="value" id="statFlagged">0</div></div>
+    </div>
+    <div class="btn-row" id="standardBtnRow">
+      <button class="btn-primary" id="downloadAllBtn">Download all statements (ZIP)</button>
+      <button class="btn-secondary" id="downloadReviewBtn">Download needs-review PDF</button>
+    </div>
+    <div class="btn-row hidden" id="rollupBtnRow">
+      <button class="btn-primary" id="downloadRollupPdfBtn">Download rollup (PDF)</button>
+      <button class="btn-secondary" id="downloadRollupCsvBtn">Download rollup (CSV)</button>
+    </div>
+    <div style="margin-top:20px; max-height:520px; overflow-y:auto;" id="standardTableWrap">
+      <table>
+        <thead><tr><th>Company</th><th class="num">Employees</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="companyTableBody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:20px; max-height:520px; overflow:auto;" class="hidden" id="rollupTableWrap"></div>
+  </div>
+</div>
+
+<script>
+const REQUIRED_COLS = ["Company","First Name","Last Name","SIMERP","FGP","FGP Amount","Policy Provider","Eligible Policy"];
+const OPTIONAL_COLS = ["Status","Employee ID"];
+const COLUMN_ALIASES = {
+  "Company": ["company","companyname","client","employer","groupname"],
+  "First Name": ["firstname"],
+  "Last Name": ["lastname"],
+  "Status": ["status"],
+  "Employee ID": ["employeeid"],
+  "SIMERP": ["simerp","simerppricing","simerpprice"],
+  "FGP": ["fgp","meccoverage","fgptier"],
+  "FGP Amount": ["fgpamount"],
+  "Policy Provider": ["policyprovider","wlprovider","wholelifeprovider"],
+  "Eligible Policy": ["eligiblepolicy","eligiblepolicymonthly"],
+};
+const BRAND_HEX = [41, 144, 233];
+const ACCENT_FILL_HEX = [232, 241, 252];
+const DARK_HEX = [26, 43, 60];
+
+const COMPANY_INFO = {
+  name: "First Gen Health",
+  address: ["123 Placeholder St, Suite 100", "Jamesville, NY 13078"],
+  contact: "billing@1gfg.com | (555) 555-0100"
+};
+
+let state = null;
+document.getElementById('rollupToggle').addEventListener('change', () => {
+  if (state) renderResults(state);
+});
+
+// ---- Statement date (defaults to today; user can backdate and confirm) ----
+function todayISO() {
+  const d = new Date();
+  const tzOffsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+}
+const statementDateInput = document.getElementById('statementDateInput');
+statementDateInput.value = todayISO();
+let confirmedStatementDate = parseISODate(statementDateInput.value);
+
+function parseISODate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d); // local date, avoids UTC off-by-one
+}
+
+document.getElementById('confirmDateBtn').addEventListener('click', () => {
+  if (!statementDateInput.value) return;
+  confirmedStatementDate = parseISODate(statementDateInput.value);
+  const badge = document.getElementById('dateConfirmedBadge');
+  document.getElementById('dateConfirmedText').textContent = confirmedStatementDate.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+  badge.classList.remove('hidden');
+  if (state) renderResults(state); // re-render so any visible PDFs reflect the new date on next download
+});
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const errorEl = document.getElementById('error');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.display = 'block';
+}
+function clearError() {
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+}
+function setStatus(msg) {
+  statusEl.innerHTML = msg;
+}
+
+function normalize(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function findCol(headers, target) {
+  const aliases = COLUMN_ALIASES[target] || [normalize(target)];
+  const normHeaders = headers.map(h => ({raw: h, norm: normalize(h)}));
+  for (const alias of aliases) {
+    const exact = normHeaders.find(h => h.norm === alias);
+    if (exact) return exact.raw;
+  }
+  for (const alias of aliases) {
+    const partial = normHeaders.find(h => h.norm.includes(alias) || alias.includes(h.norm));
+    if (partial) return partial.raw;
+  }
+  return null;
+}
+
+// Optional columns use exact match only -- no substring fallback. A missing
+// optional column should just be blank, never a mismatched guess (e.g. this
+// avoided "Status" incorrectly matching a column called "Status Updated by").
+function findColExact(headers, target) {
+  const aliases = COLUMN_ALIASES[target] || [normalize(target)];
+  const normHeaders = headers.map(h => ({raw: h, norm: normalize(h)}));
+  for (const alias of aliases) {
+    const exact = normHeaders.find(h => h.norm === alias);
+    if (exact) return exact.raw;
+  }
+  return null;
+}
+
+function handleFile(file) {
+  clearError();
+  setStatus('<span class="spinner"></span>Reading file…');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type: 'array'});
+      const sheetName = wb.SheetNames.includes('Census') ? 'Census' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval: null});
+      if (!rows.length) { showError('No rows found in the file.'); setStatus(''); return; }
+
+      const headers = Object.keys(rows[0]);
+      const colmap = {};
+      const missing = [];
+      for (const target of REQUIRED_COLS) {
+        const found = findCol(headers, target);
+        if (found) colmap[target] = found; else missing.push(target);
+      }
+      for (const target of OPTIONAL_COLS) {
+        const found = findColExact(headers, target);
+        if (found) colmap[target] = found; // else left unmapped -- displays as blank
+      }
+      if (missing.length) {
+        showError('Missing required column(s): ' + missing.join(', ') + '. Found columns: ' + headers.join(', '));
+        setStatus('');
+        return;
+      }
+
+      setStatus('<span class="spinner"></span>Processing rows…');
+      setTimeout(() => processRows(rows, colmap), 30);
+    } catch (err) {
+      showError('Could not read this file: ' + err.message);
+      setStatus('');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function num(v) {
+  if (v === null || v === undefined || v === '') return NaN;
+  const n = parseFloat(v);
+  return isNaN(n) ? NaN : n;
+}
+
+function processRows(rawRows, colmap) {
+  const rows = rawRows.map(r => ({
+    Company: r[colmap.Company],
+    FirstName: r[colmap['First Name']],
+    LastName: r[colmap['Last Name']],
+    Status: r[colmap.Status],
+    EmployeeID: r[colmap['Employee ID']],
+    SIMERP: r[colmap.SIMERP],
+    FGP: r[colmap.FGP],
+    FGPAmount: r[colmap['FGP Amount']],
+    PolicyProvider: r[colmap['Policy Provider']],
+    EligiblePolicy: r[colmap['Eligible Policy']],
+  })).filter(r => r.Company !== null && r.Company !== undefined && String(r.Company).trim() !== '');
+
+  const testExcluded = rows.filter(r => /test/i.test(String(r.Company)));
+  const nonTest = rows.filter(r => !/test/i.test(String(r.Company)));
+
+  const hasStatusColumn = !!colmap.Status;
+  const activeRows = hasStatusColumn
+    ? nonTest.filter(r => r.Status !== null && r.Status !== undefined && String(r.Status).trim().toUpperCase() === 'ACTIVE')
+    : nonTest;
+  const inactiveCount = nonTest.length - activeRows.length;
+
+  const excluded = [];
+  const valid = [];
+  for (const r of activeRows) {
+    const missingSimerp = isNaN(num(r.SIMERP));
+    const missingFgp = r.FGP === null || r.FGP === undefined || String(r.FGP).trim() === '';
+    if (missingSimerp || missingFgp) {
+      const missing = [];
+      if (missingSimerp) missing.push('SIMERP');
+      if (missingFgp) missing.push('FGP');
+      excluded.push({...r, Missing: missing.join(', ')});
+    } else {
+      valid.push(r);
+    }
+  }
+
+  const byCompany = {};
+  for (const r of valid) {
+    const c = String(r.Company).trim();
+    (byCompany[c] = byCompany[c] || []).push(r);
+  }
+
+  const byCompanyAll = {};
+  for (const r of activeRows) {
+    const c = String(r.Company).trim();
+    (byCompanyAll[c] = byCompanyAll[c] || []).push(r);
+  }
+
+  const companies = Object.keys(byCompany).sort((a,b) => a.localeCompare(b));
+  const companySummaries = companies.map(c => {
+    const sub = byCompany[c];
+    const summary = computeSummary(sub);
+    return {company: c, rows: sub, summary};
+  });
+
+  const allCompanyNames = Object.keys(byCompanyAll).sort((a,b) => a.localeCompare(b));
+  const rollupRows = allCompanyNames.map(c => computeRollupLine(c, byCompanyAll[c]));
+
+  state = {companies: companySummaries, excluded, testExcludedCount: testExcluded.length, rollupRows, hasStatusColumn, inactiveCount};
+  renderResults(state);
+  const inactiveNote = hasStatusColumn ? (' (' + inactiveCount.toLocaleString('en-US') + ' inactive employee(s) excluded)') : '';
+  setStatus('Done. ' + companies.length + ' companies ready.' + inactiveNote);
+}
+
+function computeSummary(sub) {
+  const simerpVals = sub.map(r => num(r.SIMERP)).filter(v => !isNaN(v));
+  const nVirtual = simerpVals.length;
+  const virtualTotal = simerpVals.reduce((a,b) => a+b, 0);
+  const uniqSimerp = [...new Set(simerpVals)];
+  const virtualPriceDisp = uniqSimerp.length === 1 && nVirtual ? ('$' + uniqSimerp[0].toFixed(2)) : 'Varies';
+
+  const inPersonRows = sub.filter(r => ['MEC','MEC+'].includes(String(r.FGP).trim().toUpperCase()));
+  const inPersonAmts = inPersonRows.map(r => num(r.FGPAmount)).filter(v => !isNaN(v));
+  const nInPerson = inPersonAmts.length;
+  const inPersonTotal = inPersonAmts.reduce((a,b) => a+b, 0);
+  const uniqFgp = [...new Set(inPersonAmts)];
+  const inPersonPriceDisp = uniqFgp.length === 1 && nInPerson ? ('$' + uniqFgp[0].toFixed(2)) : 'Varies';
+
+  const wholelifeVals = sub.map(r => num(r.EligiblePolicy)).filter(v => !isNaN(v) && v > 0);
+  const nWholelife = wholelifeVals.length;
+  const wholelifeTotal = wholelifeVals.reduce((a,b) => a+b, 0);
+
+  const grandTotal = virtualTotal + inPersonTotal + wholelifeTotal;
+  return {
+    rows: [
+      {name: 'Virtual', count: nVirtual, priceDisp: virtualPriceDisp, total: virtualTotal},
+      {name: 'In-Person', count: nInPerson, priceDisp: inPersonPriceDisp, total: inPersonTotal},
+      {name: 'Wholelife', count: nWholelife, priceDisp: 'Varies', total: wholelifeTotal},
+    ],
+    grandTotal,
+    employeeCount: sub.length,
+  };
+}
+
+function fmtMoney(n) {
+  return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// ---- Whole 1GFG Rollup: one line per company, each product column computed
+// independently of the others (a row missing SIMERP can still count toward
+// MEC/MEC+/Wholelife, and vice versa) ----
+const ROLLUP_MEC_PRICE = 65;
+const ROLLUP_MECPLUS_PRICE = 95;
+const ROLLUP_PAGE_SIZE = 20;
+
+function computeRollupLine(company, allRows) {
+  const members = allRows.length;
+
+  const simerpVals = allRows.map(r => num(r.SIMERP)).filter(v => !isNaN(v));
+  const simerpAvg = simerpVals.length ? simerpVals.reduce((a,b)=>a+b,0) / simerpVals.length : NaN;
+  const simerpSub = simerpVals.length ? simerpVals.reduce((a,b)=>a+b,0) : NaN;
+
+  const mecRows = allRows.filter(r => String(r.FGP).trim().toUpperCase() === 'MEC');
+  const mecCount = mecRows.length;
+  const mecSub = mecCount * ROLLUP_MEC_PRICE;
+
+  const mecPlusRows = allRows.filter(r => String(r.FGP).trim().toUpperCase() === 'MEC+');
+  const mecPlusCount = mecPlusRows.length;
+  const mecPlusSub = mecPlusCount * ROLLUP_MECPLUS_PRICE;
+
+  const wlVals = allRows.map(r => num(r.EligiblePolicy)).filter(v => !isNaN(v) && v > 0);
+  const wlCount = wlVals.length;
+  const wlSum = wlVals.length ? wlVals.reduce((a,b)=>a+b,0) : 0;
+  const providerCounts = {};
+  for (const r of allRows) {
+    const p = r.PolicyProvider ? String(r.PolicyProvider).trim() : null;
+    if (p) providerCounts[p] = (providerCounts[p] || 0) + 1;
+  }
+  const providerEntries = Object.entries(providerCounts).sort((a,b) => b[1]-a[1]);
+  const provider = providerEntries.length ? providerEntries[0][0] : '—';
+
+  const total = (isNaN(simerpSub) ? 0 : simerpSub) + mecSub + mecPlusSub + wlSum;
+
+  return {
+    company, members,
+    simerpAvg, simerpCount: members, simerpSub,
+    mecCount, mecSub,
+    mecPlusCount, mecPlusSub,
+    provider, wlCount, wlSum,
+    total,
+  };
+}
+
+function sumRollupField(rows, field) {
+  return rows.reduce((a, r) => a + (isNaN(r[field]) ? 0 : r[field]), 0);
+}
+
+function renderResults(st) {
+  document.getElementById('resultsCard').classList.remove('hidden');
+  const isRollup = document.getElementById('rollupToggle').checked;
+
+  document.getElementById('standardBtnRow').classList.toggle('hidden', isRollup);
+  document.getElementById('rollupBtnRow').classList.toggle('hidden', !isRollup);
+  document.getElementById('standardTableWrap').classList.toggle('hidden', isRollup);
+  document.getElementById('rollupTableWrap').classList.toggle('hidden', !isRollup);
+
+  if (isRollup) {
+    renderRollupStats(st);
+    renderRollupTable(st);
+  } else {
+    renderStandardStats(st);
+    renderStandardTable(st);
+  }
+}
+
+function renderStandardStats(st) {
+  const totalEmployees = st.companies.reduce((a,c) => a + c.summary.employeeCount, 0);
+  const grandTotal = st.companies.reduce((a,c) => a + c.summary.grandTotal, 0);
+  document.getElementById('statCompanies').textContent = st.companies.length;
+  document.getElementById('statEmployees').textContent = totalEmployees.toLocaleString('en-US');
+  document.getElementById('statTotal').textContent = fmtMoney(grandTotal);
+  document.getElementById('statFlagged').textContent = st.excluded.length;
+}
+
+function renderStandardTable(st) {
+  const existingWarning = document.getElementById('standardStatusWarning');
+  if (existingWarning) existingWarning.remove();
+  if (!st.hasStatusColumn) {
+    const warn = document.createElement('div');
+    warn.id = 'standardStatusWarning';
+    warn.className = 'status-warning';
+    warn.textContent = 'No "Status" column was found in this file, so statements include every employee regardless of status.';
+    document.getElementById('standardTableWrap').before(warn);
+  }
+  const tbody = document.getElementById('companyTableBody');
+  tbody.innerHTML = '';
+  st.companies.forEach((c, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(c.company)}</td>
+      <td class="num">${c.summary.employeeCount}</td>
+      <td class="num">${fmtMoney(c.summary.grandTotal)}</td>
+      <td><a class="dl-link" data-idx="${idx}">Download PDF</a></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.dl-link').forEach(link => {
+    link.addEventListener('click', () => {
+      const idx = parseInt(link.getAttribute('data-idx'));
+      const c = st.companies[idx];
+      const doc = buildStatementPDF(c.company, c.rows, c.summary);
+      doc.save(safeFilename(c.company) + '.pdf');
+    });
+  });
+}
+
+function renderRollupStats(st) {
+  const rows = st.rollupRows;
+  const grandTotal = sumRollupField(rows, 'total');
+  const totalMembers = rows.reduce((a,r) => a + r.members, 0);
+  document.getElementById('statCompanies').textContent = rows.length;
+  document.getElementById('statEmployees').textContent = totalMembers.toLocaleString('en-US');
+  document.getElementById('statTotal').textContent = fmtMoney(grandTotal);
+  document.getElementById('statFlagged').textContent = st.excluded.length;
+}
+
+function moneyOrDash(v) {
+  return (v === null || v === undefined || isNaN(v)) ? '<span class="dash-text">–</span>' : fmtMoney(v);
+}
+
+function rollupPages(rows) {
+  const pages = [];
+  for (let i = 0; i < rows.length; i += ROLLUP_PAGE_SIZE) pages.push(rows.slice(i, i + ROLLUP_PAGE_SIZE));
+  return pages;
+}
+
+function rollupPageSubtotal(pageRows) {
+  return {
+    simerpSub: sumRollupField(pageRows, 'simerpSub'),
+    mecSub: sumRollupField(pageRows, 'mecSub'),
+    mecPlusSub: sumRollupField(pageRows, 'mecPlusSub'),
+    wlSum: sumRollupField(pageRows, 'wlSum'),
+    total: sumRollupField(pageRows, 'total'),
+  };
+}
+
+function renderRollupTable(st) {
+  const rows = st.rollupRows;
+  const pages = rollupPages(rows);
+  let html = '';
+  if (!st.hasStatusColumn) {
+    html += '<div class="status-warning">No "Status" column was found in this file, so the Active-only filter could not be applied — this rollup includes every employee regardless of status.</div>';
+  }
+  html += '<table class="rollup"><thead>' +
+    '<tr class="group-row"><th rowspan="2">Company</th><th colspan="3">SIMERP</th><th colspan="2">MEC ($' + ROLLUP_MEC_PRICE + ')</th>' +
+    '<th colspan="2">MEC+ ($' + ROLLUP_MECPLUS_PRICE + ')</th><th colspan="3">Whole Life</th><th rowspan="2">Total</th></tr>' +
+    '<tr class="col-row"><th>Mbrs</th><th>Avg$</th><th>#</th><th>Sub</th><th>#</th><th>Sub</th>' +
+    '<th>Provider</th><th>#</th><th>Sum</th></tr></thead><tbody>';
+
+  let grandCounter = 0;
+  pages.forEach((pageRows, pageIdx) => {
+    pageRows.forEach(r => {
+      grandCounter++;
+      html += '<tr>' +
+        `<td class="name">${escapeHtml(r.company)}</td>` +
+        `<td class="num">${r.members}</td>` +
+        `<td class="num">${moneyOrDash(r.simerpAvg)}</td>` +
+        `<td class="num">${r.simerpCount}</td>` +
+        `<td class="sub">${moneyOrDash(r.simerpSub)}</td>` +
+        `<td class="num">${r.mecCount}</td>` +
+        `<td class="sub">${r.mecCount ? fmtMoney(r.mecSub) : '<span class="dash-text">–</span>'}</td>` +
+        `<td class="num">${r.mecPlusCount}</td>` +
+        `<td class="sub">${r.mecPlusCount ? fmtMoney(r.mecPlusSub) : '<span class="dash-text">–</span>'}</td>` +
+        `<td>${escapeHtml(r.provider)}</td>` +
+        `<td class="num">${r.wlCount}</td>` +
+        `<td class="num">${r.wlCount ? fmtMoney(r.wlSum) : '<span class="dash-text">–</span>'}</td>` +
+        `<td class="total-col">${fmtMoney(r.total)}</td>` +
+        '</tr>';
+    });
+    const sub = rollupPageSubtotal(pageRows);
+    const start = pageIdx * ROLLUP_PAGE_SIZE + 1;
+    const end = pageIdx * ROLLUP_PAGE_SIZE + pageRows.length;
+    html += `<tr class="page-subtotal"><td>PG ${pageIdx+1} (${start}-${end})</td><td></td><td></td><td></td>` +
+      `<td>${fmtMoney(sub.simerpSub)}</td><td></td><td>${fmtMoney(sub.mecSub)}</td><td></td>` +
+      `<td>${fmtMoney(sub.mecPlusSub)}</td><td></td><td></td><td>${fmtMoney(sub.wlSum)}</td>` +
+      `<td>${fmtMoney(sub.total)}</td></tr>`;
+  });
+
+  const gt = rollupPageSubtotal(rows);
+  html += `<tr class="grand-total"><td>GRAND TOTAL (${rows.length})</td><td></td><td></td><td></td>` +
+    `<td>${fmtMoney(gt.simerpSub)}</td><td></td><td>${fmtMoney(gt.mecSub)}</td><td></td>` +
+    `<td>${fmtMoney(gt.mecPlusSub)}</td><td></td><td></td><td>${fmtMoney(gt.wlSum)}</td>` +
+    `<td>${fmtMoney(gt.total)}</td></tr>`;
+
+  html += '</tbody></table>';
+  document.getElementById('rollupTableWrap').innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function safeFilename(s) {
+  return String(s).replace(/[\\/:*?"<>|]/g, '_').trim();
+}
+function statementNumber(company) {
+  const now = confirmedStatementDate;
+  const ym = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0');
+  const slug = String(company).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
+  return '1GFG-' + ym + '-' + slug;
+}
+function statementDateStr() {
+  return confirmedStatementDate.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+}
+
+function drawHeader(doc, company) {
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK_HEX);
+  doc.text(COMPANY_INFO.name, 40, 44);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(90,90,90);
+  doc.text(COMPANY_INFO.address[0], 40, 58);
+  doc.text(COMPANY_INFO.address[1], 40, 70);
+  doc.text(COMPANY_INFO.contact, 40, 82);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...BRAND_HEX);
+  doc.text('EMPLOYEE', 572, 44, {align:'right'});
+  doc.text('DEDUCTION', 572, 62, {align:'right'});
+  doc.text('STATEMENT', 572, 80, {align:'right'});
+
+  doc.setDrawColor(...BRAND_HEX);
+  doc.setLineWidth(1.5);
+  doc.line(40, 96, 572, 96);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Statement To:', 40, 118);
+  doc.setFont('helvetica','normal');
+  doc.text(String(company), 40, 132);
+
+  drawLabelValueRight(doc, 'Statement #: ', statementNumber(company), 572, 118);
+  drawLabelValueRight(doc, 'Statement Date: ', statementDateStr(), 572, 136);
+
+  return 168;
+}
+
+function drawLabelValueRight(doc, label, value, xRight, y) {
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  const valueWidth = doc.getTextWidth(value);
+  doc.text(value, xRight, y, {align: 'right'});
+  doc.setFont('helvetica','bold');
+  doc.text(label, xRight - valueWidth - 2, y, {align: 'right'});
+}
+
+function buildStatementPDF(company, rows, summary) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+
+  let y = drawHeader(doc, company);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Summary', 40, y);
+  y += 14;
+
+  const body = summary.rows.map(r => [r.name, String(r.count), r.priceDisp, fmtMoney(r.total)]);
+  body.push(['', '', 'GRAND TOTAL', fmtMoney(summary.grandTotal)]);
+
+  doc.autoTable({
+    startY: y,
+    margin: {left:40, right:40},
+    head: [['Product','Member #','Price','Total']],
+    body: body,
+    styles: {font:'helvetica', fontSize:10, cellPadding:6},
+    headStyles: {fillColor: BRAND_HEX, textColor:255, fontStyle:'bold'},
+    columnStyles: {1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+    didParseCell: function(data) {
+      if (data.row.index === body.length - 1 && data.row.section === 'body') {
+        data.cell.styles.fillColor = ACCENT_FILL_HEX;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+
+  const afterY = doc.lastAutoTable.finalY + 20;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(120,120,120);
+  doc.text('Payment due within 30 days of statement date. Remit to First Gen Health. Questions? billing@1gfg.com.', 40, afterY);
+
+  doc.addPage();
+  let y2 = drawHeader(doc, company);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Detailed Line Items', 40, y2);
+  y2 += 14;
+
+  const detailBody = rows.map(r => {
+    const simerp = num(r.SIMERP);
+    const fgpAmt = num(r.FGPAmount);
+    const elig = num(r.EligiblePolicy);
+    return [
+      r.EmployeeID ? String(r.EmployeeID) : '-',
+      r.FirstName || '', r.LastName || '',
+      isNaN(simerp) ? '-' : ('$'+simerp.toFixed(2)),
+      r.FGP || '',
+      isNaN(fgpAmt) ? '-' : ('$'+fgpAmt.toFixed(2)),
+      r.PolicyProvider || '-',
+      isNaN(elig) ? '-' : ('$'+elig.toFixed(2)),
+      r.Status || '',
+    ];
+  });
+
+  doc.autoTable({
+    startY: y2,
+    margin: {left:40, right:40},
+    head: [['Employee ID','First Name','Last Name','SIMERP','FGP','FGP Amount','Policy Provider','Eligible Policy','Status']],
+    body: detailBody,
+    styles: {font:'helvetica', fontSize:7.5, cellPadding:4},
+    headStyles: {fillColor: BRAND_HEX, textColor:255, fontStyle:'bold'},
+    columnStyles: {3:{halign:'right'},5:{halign:'right'},7:{halign:'right'}},
+    alternateRowStyles: {fillColor: [246,249,252]},
+  });
+
+  return doc;
+}
+
+function buildReviewPDF(excluded) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(192,0,0);
+  doc.text('Needs Review — Excluded From Statements', 40, 50);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(60,60,60);
+  const msg = `Generated ${statementDateStr()}. ${excluded.length} row(s) are missing SIMERP or FGP and were excluded from company totals and statements. Fix the source data and rerun.`;
+  const msgLines = doc.splitTextToSize(msg, 500);
+  doc.text(msgLines, 40, 72);
+
+  let y = 72 + msgLines.length * 12 + 16;
+  if (excluded.length === 0) {
+    doc.text('No incomplete rows found.', 40, y);
+  } else {
+    const byCompany = {};
+    for (const r of excluded) (byCompany[r.Company] = byCompany[r.Company] || []).push(r);
+    const companies = Object.keys(byCompany).sort((a,b)=>a.localeCompare(b));
+    for (const c of companies) {
+      const sub = byCompany[c];
+      if (y > 700) { doc.addPage(); y = 50; }
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.setTextColor(26,43,60);
+      doc.text(`${c} (${sub.length} row(s))`, 40, y);
+      y += 8;
+      doc.autoTable({
+        startY: y,
+        margin: {left:40, right:40},
+        head: [['Employee ID','First Name','Last Name','Missing']],
+        body: sub.map(r => [r.EmployeeID ? String(r.EmployeeID) : '-', r.FirstName||'', r.LastName||'', r.Missing]),
+        styles: {font:'helvetica', fontSize:8.5, cellPadding:4},
+        headStyles: {fillColor:[242,210,210], textColor:[60,20,20], fontStyle:'bold'},
+      });
+      y = doc.lastAutoTable.finalY + 20;
+    }
+  }
+  return doc;
+}
+
+// ---- Whole 1GFG Rollup export ----
+function buildRollupPDF(rows) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter', orientation:'landscape'});
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(...DARK_HEX);
+  doc.text('Whole 1GFG Rollup', 30, 34);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100,100,100);
+  doc.text('Generated ' + statementDateStr() + ' — ' + rows.length + ' companies', 30, 48);
+
+  const head = [
+    [
+      {content:'Company', rowSpan:2}, {content:'SIMERP', colSpan:3},
+      {content:'MEC ($'+ROLLUP_MEC_PRICE+')', colSpan:2}, {content:'MEC+ ($'+ROLLUP_MECPLUS_PRICE+')', colSpan:2},
+      {content:'Whole Life', colSpan:3}, {content:'Total', rowSpan:2},
+    ],
+    ['Mbrs','Avg$','#','Sub','#','Sub','#','Sub','Provider','#','Sum'],
+  ];
+
+  const dash = '-';
+  const money = v => (v===null||v===undefined||isNaN(v)) ? dash : ('$'+v.toFixed(2));
+  const body = [];
+  const pages = rollupPages(rows);
+  pages.forEach((pageRows, pageIdx) => {
+    pageRows.forEach(r => {
+      body.push([
+        r.company, r.members, money(r.simerpAvg), r.simerpCount, money(r.simerpSub),
+        r.mecCount, r.mecCount ? money(r.mecSub) : dash,
+        r.mecPlusCount, r.mecPlusCount ? money(r.mecPlusSub) : dash,
+        r.provider, r.wlCount, r.wlCount ? money(r.wlSum) : dash,
+        money(r.total),
+      ]);
+    });
+    const sub = rollupPageSubtotal(pageRows);
+    const start = pageIdx*ROLLUP_PAGE_SIZE+1, end = pageIdx*ROLLUP_PAGE_SIZE+pageRows.length;
+    body.push([`PG ${pageIdx+1} (${start}-${end})`,'','','',money(sub.simerpSub),'',money(sub.mecSub),'',money(sub.mecPlusSub),'','',money(sub.wlSum),money(sub.total)]);
+  });
+  const gt = rollupPageSubtotal(rows);
+  body.push([`GRAND TOTAL (${rows.length})`,'','','',money(gt.simerpSub),'',money(gt.mecSub),'',money(gt.mecPlusSub),'','',money(gt.wlSum),money(gt.total)]);
+
+  doc.autoTable({
+    startY: 62,
+    margin: {left:20, right:20},
+    head, body,
+    styles: {font:'helvetica', fontSize:7, cellPadding:3},
+    headStyles: {fillColor: BRAND_HEX, textColor:255, fontStyle:'bold', halign:'center'},
+    columnStyles: {1:{halign:'right'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right'},7:{halign:'right'},8:{halign:'right'},10:{halign:'right'},11:{halign:'right'},12:{halign:'right'}},
+    didParseCell: function(data) {
+      const isSubtotalRow = data.row.section === 'body' && typeof data.row.raw[0] === 'string' && String(data.row.raw[0]).startsWith('PG ');
+      const isGrandTotal = data.row.section === 'body' && typeof data.row.raw[0] === 'string' && String(data.row.raw[0]).startsWith('GRAND TOTAL');
+      if (isSubtotalRow) { data.cell.styles.fillColor = ACCENT_FILL_HEX; data.cell.styles.fontStyle = 'bold'; }
+      if (isGrandTotal) { data.cell.styles.fillColor = [215,230,251]; data.cell.styles.fontStyle = 'bold'; }
+    },
+  });
+  return doc;
+}
+
+function buildRollupCSV(rows) {
+  const header = ['Company','Members','SIMERP Avg$','SIMERP #','SIMERP Sub','MEC #','MEC Sub','MEC+ #','MEC+ Sub','WL Provider','WL #','WL Sum','Total'];
+  const lines = [header.join(',')];
+  const val = v => (v===null||v===undefined||isNaN(v)) ? '' : v.toFixed(2);
+  const esc = s => '"' + String(s).replace(/"/g,'""') + '"';
+  rows.forEach(r => {
+    lines.push([
+      esc(r.company), r.members, val(r.simerpAvg), r.simerpCount, val(r.simerpSub),
+      r.mecCount, r.mecCount ? val(r.mecSub) : '', r.mecPlusCount, r.mecPlusCount ? val(r.mecPlusSub) : '',
+      esc(r.provider), r.wlCount, r.wlCount ? val(r.wlSum) : '', val(r.total),
+    ].join(','));
+  });
+  const gt = rollupPageSubtotal(rows);
+  lines.push(['GRAND TOTAL','','','',val(gt.simerpSub),'',val(gt.mecSub),'',val(gt.mecPlusSub),'','',val(gt.wlSum),val(gt.total)].join(','));
+  return lines.join('\n');
+}
+
+document.getElementById('downloadRollupPdfBtn').addEventListener('click', () => {
+  if (!state) return;
+  const doc = buildRollupPDF(state.rollupRows);
+  doc.save('Whole_1GFG_Rollup.pdf');
+});
+document.getElementById('downloadRollupCsvBtn').addEventListener('click', () => {
+  if (!state) return;
+  const csv = buildRollupCSV(state.rollupRows);
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Whole_1GFG_Rollup.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('downloadReviewBtn').addEventListener('click', () => {
+  if (!state) return;
+  const doc = buildReviewPDF(state.excluded);
+  doc.save('Needs_Review.pdf');
+});
+
+document.getElementById('downloadAllBtn').addEventListener('click', () => {
+  if (!state) return;
+  const btn = document.getElementById('downloadAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Building ZIP…';
+  setTimeout(buildAndDownloadZip, 30);
+});
+
+async function buildAndDownloadZip() {
+  const btn = document.getElementById('downloadAllBtn');
+  const zip = new JSZip();
+  for (const c of state.companies) {
+    const doc = buildStatementPDF(c.company, c.rows, c.summary);
+    const blob = doc.output('blob');
+    zip.file(safeFilename(c.company) + '.pdf', blob);
+  }
+  const reviewDoc = buildReviewPDF(state.excluded);
+  zip.file('Needs_Review.pdf', reviewDoc.output('blob'));
+
+  const content = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '1GFG_Deduction_Statements.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  btn.disabled = false;
+  btn.textContent = 'Download all statements (ZIP)';
+}
+</script>
+</body>
+</html>
