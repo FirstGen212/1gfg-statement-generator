@@ -2,186 +2,514 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>1GFG Employee Deduction Statement Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First Gen Health | Statement Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
-    --brand: #2990E9;
-    --brand-dark: #1A2B3C;
-    --accent-fill: #E8F1FC;
-    --border: #D5DEE8;
-    --text-secondary: #5B6B7C;
-    --danger: #C00000;
-    --danger-bg: #FBEAEA;
+    --navy-900: #0a1628;
+    --navy-800: #111d2e;
+    --navy-700: #1a2942;
+    --navy-600: #243555;
+    --cyan-500: #00b4d8;
+    --cyan-400: #33c3e0;
+    --cyan-300: #66d2e8;
+    --cyan-100: #e6f8fc;
+    --green-500: #7ed321;
+    --green-400: #9de04f;
+    --white: #ffffff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+
+    --bg-primary: var(--white);
+    --bg-secondary: var(--gray-50);
+    --text-primary: var(--navy-900);
+    --text-secondary: var(--gray-600);
+    --text-muted: var(--gray-400);
+    --accent: var(--cyan-500);
+    --success: var(--green-500);
+    --danger: #ef4444;
+    --danger-bg: #fef2f2;
+    --warning: #f59e0b;
+    --warning-bg: #fffbeb;
+    --border: var(--gray-200);
+    --border-light: var(--gray-100);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
   }
-  * { box-sizing: border-box; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-    background: #F4F7FA;
-    color: var(--brand-dark);
-    margin: 0;
-    padding: 32px 16px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
-  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px; }
-  .card {
-    background: #fff;
-    border: 0.5px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 20px;
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--gray-100); }
+  ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: var(--radius-full); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+
+  /* ===== HERO ===== */
+  .hero {
+    position: relative;
+    background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
+    padding: 60px 2rem 100px;
+    overflow: hidden;
   }
-  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
-  .rules { font-size: 13px; color: var(--text-secondary); line-height: 1.7; margin: 0; padding-left: 18px; }
-  #dropzone {
-    border: 2px dashed var(--border);
-    border-radius: 12px;
-    padding: 40px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color .15s, background .15s;
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(0,180,216,0.08) 0%, transparent 70%);
+    pointer-events: none;
   }
-  #dropzone.drag { border-color: var(--brand); background: var(--accent-fill); }
-  #dropzone p { margin: 6px 0; color: var(--text-secondary); font-size: 14px; }
-  #dropzone .big { font-size: 16px; font-weight: 700; color: var(--brand-dark); }
-  #fileInput { display: none; }
-  button {
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 700;
-    border-radius: 8px;
-    border: none;
-    padding: 10px 18px;
-    cursor: pointer;
+  .hero-content { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(0,180,216,0.12);
+    border: 1px solid rgba(0,180,216,0.25);
+    border-radius: var(--radius-full);
+    font-size: 0.8rem; font-weight: 600; color: var(--cyan-400);
+    margin-bottom: 1.5rem;
   }
-  .btn-primary { background: var(--brand); color: #fff; }
-  .btn-primary:hover { background: #1f7ad6; }
-  .btn-secondary { background: #fff; border: 1px solid var(--border); color: var(--brand-dark); }
-  .btn-secondary:hover { background: #F4F7FA; }
-  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 0.5px solid var(--border); }
-  th { color: var(--text-secondary); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .02em; }
-  td.num, th.num { text-align: right; }
-  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .stat { background: var(--accent-fill); border-radius: 10px; padding: 14px 16px; }
-  .stat .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
-  .stat .value { font-size: 22px; font-weight: 700; color: var(--brand-dark); }
-  .stat.warn { background: var(--danger-bg); }
-  .stat.warn .value { color: var(--danger); }
-  .dl-link { color: var(--brand); font-weight: 700; text-decoration: none; cursor: pointer; font-size: 13px; }
-  .dl-link:hover { text-decoration: underline; }
-  #status { font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
-  #error { font-size: 13px; color: var(--danger); background: var(--danger-bg); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
-  .hidden { display: none; }
-  .checkbox-row {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: var(--text-secondary); margin-top: 14px; cursor: pointer;
+  .hero-badge .dot { width: 6px; height: 6px; background: var(--cyan-500); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .hero h1 {
+    font-size: clamp(2.25rem, 5vw, 3.75rem);
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--white);
+    letter-spacing: -0.03em;
+    margin-bottom: 1.25rem;
+    max-width: 700px;
   }
-  .checkbox-row input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
-  table.rollup { font-size: 12px; border-collapse: collapse; white-space: nowrap; }
-  table.rollup th, table.rollup td { border: 0.5px solid var(--border); padding: 6px 10px; }
-  table.rollup thead tr.group-row th { background: var(--accent-fill); color: var(--brand); font-size: 11px; text-align: center; }
-  table.rollup thead tr.col-row th { background: #F4F7FA; color: var(--text-secondary); font-size: 10.5px; text-transform: uppercase; }
-  table.rollup td.name { color: var(--brand); font-weight: 700; text-align: left; white-space: normal; max-width: 180px; }
-  table.rollup td.num { text-align: right; }
-  table.rollup td.sub { color: #6B3FA0; font-weight: 700; text-align: right; }
-  table.rollup td.dash { color: #B6BFC8; text-align: right; }
-  table.rollup tr.page-subtotal td { background: var(--accent-fill); font-weight: 700; color: var(--brand-dark); }
-  table.rollup tr.grand-total td { background: #D7E6FB; font-weight: 700; color: var(--brand-dark); border-top: 2px solid var(--brand); }
-  table.rollup td.total-col { color: var(--brand-dark); font-weight: 700; text-align: right; }
-  .dash-text { color: #B6BFC8; }
+  .hero h1 .accent { color: var(--cyan-500); position: relative; }
+  .hero h1 .accent::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 8px;
+    background: rgba(0,180,216,0.2); border-radius: 4px;
+  }
+  .hero p { font-size: 1.125rem; color: rgba(255,255,255,0.65); max-width: 560px; line-height: 1.7; margin-bottom: 2rem; }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.875rem 1.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.9375rem; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; line-height: 1;
+  }
+  .btn-primary { background: var(--cyan-500); color: var(--navy-900); box-shadow: 0 4px 14px rgba(0,180,216,0.35); }
+  .btn-primary:hover { background: var(--cyan-400); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,180,216,0.45); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-outline { background: transparent; color: var(--white); border: 1.5px solid rgba(255,255,255,0.25); }
+  .btn-outline:hover { border-color: var(--white); background: rgba(255,255,255,0.06); }
+  .btn-dark { background: var(--navy-900); color: var(--white); }
+  .btn-dark:hover { background: var(--navy-700); }
+  .btn-dark:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 0.625rem 1.25rem; font-size: 0.875rem; }
+
+  /* ===== MAIN CONTENT ===== */
+  .main-content { max-width: 1000px; margin: 0 auto; padding: 0 2rem 4rem; }
+
+  .section {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem;
+    margin-top: -56px;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.3s;
+    position: relative;
+    z-index: 2;
+  }
+  .section:hover { box-shadow: var(--shadow-md); }
+  #how-it-works { margin-top: -56px; }
+  .section ~ .section { margin-top: 0; }
+
+  .section-header { display: flex; align-items: flex-start; gap: 1.25rem; margin-bottom: 2rem; }
+  .section-number {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--cyan-500), var(--cyan-400));
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.125rem; color: var(--white);
+    flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,180,216,0.25);
+  }
+  .section-title-group h2 { font-size: 1.375rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.25rem; letter-spacing: -0.01em; }
+  .section-title-group p { font-size: 0.9375rem; color: var(--text-secondary); }
+
+  /* ===== HOW IT WORKS ===== */
+  .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+  .rule-card { background: var(--gray-50); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.5rem; transition: all 0.2s; }
+  .rule-card:hover { border-color: var(--cyan-300); background: var(--cyan-100); transform: translateY(-2px); }
+  .rule-card h4 { font-size: 0.8rem; font-weight: 700; color: var(--cyan-500); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .rule-card p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; }
+
+  /* ===== FORM ELEMENTS ===== */
+  .form-group { margin-bottom: 1.5rem; max-width: 280px; }
+  .form-label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--navy-900); margin-bottom: 0.5rem; }
+  .form-input {
+    width: 100%; padding: 0.875rem 1rem;
+    background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md);
+    color: var(--navy-900); font-size: 0.9375rem; font-family: inherit; transition: all 0.2s;
+  }
+  .form-input:focus { outline: none; border-color: var(--cyan-500); box-shadow: 0 0 0 3px rgba(0,180,216,0.12); }
+  input[type="date"] { color-scheme: light; }
+
+  .date-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+
+  .checkbox-wrapper { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.5rem 0; }
+  .checkbox-wrapper input[type="checkbox"] {
+    appearance: none; width: 20px; height: 20px;
+    border: 2px solid var(--border); border-radius: 6px; background: var(--white);
+    cursor: pointer; position: relative; transition: all 0.2s; flex-shrink: 0;
+  }
+  .checkbox-wrapper input[type="checkbox"]:checked { background: var(--cyan-500); border-color: var(--cyan-500); }
+  .checkbox-wrapper input[type="checkbox"]:checked::after {
+    content: ''; position: absolute; left: 5px; top: 2px; width: 5px; height: 10px;
+    border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
+  .checkbox-wrapper span { font-size: 0.9375rem; color: var(--text-secondary); }
+
+  /* ===== DROP ZONE ===== */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius-lg);
+    padding: 3.5rem 2rem; text-align: center; background: var(--gray-50);
+    transition: all 0.3s; cursor: pointer; position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--cyan-500); background: var(--cyan-100); }
+  .drop-zone-icon {
+    width: 72px; height: 72px; margin: 0 auto 1.25rem;
+    background: linear-gradient(135deg, var(--cyan-500), var(--cyan-400));
+    border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; box-shadow: 0 8px 24px rgba(0,180,216,0.2);
+  }
+  .drop-zone h3 { font-size: 1.125rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.5rem; }
+  .drop-zone p { font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+  .drop-zone .file-types {
+    display: inline-block; padding: 0.25rem 0.75rem; background: var(--white);
+    border-radius: var(--radius-full); font-size: 0.75rem; color: var(--cyan-500);
+    font-weight: 600; border: 1px solid var(--cyan-300);
+  }
+  .file-input { display: none; }
+
+  .columns-tag { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; }
+  .column-tag {
+    padding: 0.375rem 0.875rem; background: var(--gray-50); border: 1px solid var(--border);
+    border-radius: var(--radius-full); font-size: 0.8rem; color: var(--text-secondary);
+    font-family: 'SF Mono', monospace; font-weight: 500;
+  }
+  .column-tag.required { background: var(--cyan-100); border-color: var(--cyan-300); color: #0891a8; font-weight: 600; }
+
+  /* ===== STATUS / ERROR ===== */
+  #status { font-size: 13px; color: var(--text-secondary); margin-top: 14px; display: flex; align-items: center; }
+  #error {
+    font-size: 13px; color: var(--danger); background: var(--danger-bg);
+    border-radius: var(--radius-md); padding: 10px 14px; margin-top: 14px; display: none;
+  }
   .status-warning {
-    background: var(--danger-bg); color: var(--danger); font-size: 13px;
-    border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600;
+    background: var(--warning-bg); color: #92400e; font-size: 13px;
+    border: 1px solid #fde68a; border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 14px; font-weight: 600;
   }
-  .date-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .date-row input[type="date"] {
-    font-family: inherit; font-size: 14px; padding: 9px 12px;
-    border: 1px solid var(--border); border-radius: 8px; color: var(--brand-dark);
+
+  /* ===== STATS DASHBOARD ===== */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card {
+    background: var(--gray-50); border: 1.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 1.75rem; position: relative; overflow: hidden; transition: all 0.3s;
   }
-  #dateConfirmedBadge { font-size: 13px; color: #1a8f4c; font-weight: 600; }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--cyan-500), var(--cyan-400)); opacity: 0; transition: opacity 0.3s;
+  }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-card:hover { transform: translateY(-2px); border-color: var(--cyan-300); box-shadow: var(--shadow-md); }
+  .stat-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+  .stat-value { font-size: 1.875rem; font-weight: 800; color: var(--navy-900); letter-spacing: -0.02em; }
+  .stat-value.accent { color: var(--cyan-500); }
+  .stat-value.warning { color: var(--warning); }
+
+  /* ===== ACTIONS BAR ===== */
+  .actions-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+
+  /* ===== DATA TABLE (standard results) ===== */
+  .table-container { overflow-x: auto; border-radius: var(--radius-md); border: 1.5px solid var(--border); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .data-table thead { background: var(--gray-50); }
+  .data-table th {
+    padding: 1rem 1.25rem; text-align: left; font-weight: 700; color: var(--navy-900);
+    text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em;
+    border-bottom: 1.5px solid var(--border); white-space: nowrap;
+  }
+  .data-table td { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+  .data-table tbody tr { transition: background 0.15s; }
+  .data-table tbody tr:hover { background: var(--cyan-100); }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table td.num, .data-table th.num { text-align: right; }
+  .data-table td.amount { font-family: 'SF Mono', monospace; font-weight: 600; color: var(--navy-900); }
+  .dl-link { color: var(--cyan-500); font-weight: 700; text-decoration: none; cursor: pointer; font-size: 13px; }
+  .dl-link:hover { text-decoration: underline; }
+
+  /* ===== ROLLUP TABLE (grouped headers) ===== */
+  table.rollup { font-size: 12px; border-collapse: collapse; white-space: nowrap; width: 100%; }
+  table.rollup th, table.rollup td { border: 1px solid var(--border); padding: 6px 10px; }
+  table.rollup thead tr.group-row th { background: var(--cyan-100); color: #0891a8; font-size: 11px; text-align: center; }
+  table.rollup thead tr.col-row th { background: var(--gray-50); color: var(--text-secondary); font-size: 10.5px; text-transform: uppercase; }
+  table.rollup td.name { color: var(--cyan-500); font-weight: 700; text-align: left; white-space: normal; max-width: 180px; }
+  table.rollup td.num { text-align: right; }
+  table.rollup td.sub { color: #6b3fa0; font-weight: 700; text-align: right; }
+  table.rollup td.dash { color: var(--gray-300); text-align: right; }
+  table.rollup tr.page-subtotal td { background: var(--cyan-100); font-weight: 700; color: var(--navy-900); }
+  table.rollup tr.grand-total td { background: #cdeef6; font-weight: 700; color: var(--navy-900); border-top: 2px solid var(--cyan-500); }
+  table.rollup td.total-col { color: var(--navy-900); font-weight: 700; text-align: right; }
+  .dash-text { color: var(--gray-300); }
+
+  /* ===== TOAST ===== */
+  .toast-container { position: fixed; top: 24px; right: 2rem; z-index: 200; display: flex; flex-direction: column; gap: 0.75rem; }
+  .toast {
+    padding: 1rem 1.5rem; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600;
+    animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1), fadeOut 0.3s ease 4.5s forwards;
+    max-width: 400px; backdrop-filter: blur(20px); border: 1.5px solid; box-shadow: var(--shadow-lg);
+  }
+  @keyframes slideInRight { from { opacity: 0; transform: translateX(30px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  @keyframes fadeOut { to { opacity: 0; transform: translateX(20px); } }
+  .toast-success { background: #ecfdf5; border-color: var(--green-500); color: #065f46; }
+  .toast-error { background: var(--danger-bg); border-color: var(--danger); color: #991b1b; }
+  .toast-info { background: #ecfeff; border-color: var(--cyan-500); color: var(--navy-900); }
+
+  /* ===== FOOTER ===== */
+  .footer { background: var(--navy-900); padding: 3rem 2rem; text-align: center; }
+  .footer p { color: rgba(255,255,255,0.5); font-size: 0.875rem; }
+  .footer a { color: var(--cyan-400); text-decoration: none; font-weight: 500; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* ===== SPINNER ===== */
   .spinner {
-    display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border);
-    border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
-    vertical-align: -2px; margin-right: 6px;
+    display: inline-block; width: 14px; height: 14px; margin-right: 8px;
+    border: 2px solid var(--border); border-top-color: var(--cyan-500);
+    border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== DARK SECTION VARIANT ===== */
+  .section-dark { background: linear-gradient(180deg, var(--navy-900), var(--navy-800)); color: var(--white); border-color: rgba(255,255,255,0.08); }
+  .section-dark .section-title-group h2 { color: var(--white); }
+  .section-dark .section-title-group p { color: rgba(255,255,255,0.6); }
+  .section-dark .form-label { color: var(--white); }
+  .section-dark .form-input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: var(--white); }
+  .section-dark .form-input:focus { border-color: var(--cyan-500); box-shadow: 0 0 0 3px rgba(0,180,216,0.15); }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .hero { padding: 40px 1.5rem 60px; }
+    .main-content { padding: 0 1rem 2rem; }
+    .section { padding: 1.75rem; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .actions-bar { flex-direction: column; }
+    .actions-bar .btn { width: 100%; justify-content: center; }
+    .hero-actions { flex-direction: column; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>1GFG Employee Deduction Statement Generator</h1>
-  <p class="sub">Upload a census file, get one branded PDF statement per company plus a data-review report. Everything runs in your browser — no file ever leaves this page.</p>
-
-  <div class="card">
-    <h2>How it rolls up</h2>
-    <ul class="rules">
-      <li><b>Virtual</b> = every row's SIMERP price, summed</li>
-      <li><b>In-Person</b> = FGP Amount for rows tagged MEC or MEC+, summed</li>
-      <li><b>Wholelife</b> = Eligible Policy amount, summed</li>
-      <li>Companies with "test" in the name are skipped entirely</li>
-      <li>Rows missing SIMERP or FGP are held back and listed in a Needs Review PDF (a missing Employee ID alone does not hold a row back)</li>
-    </ul>
-  </div>
-
-  <div class="card">
-    <h2>1. Statement date</h2>
-    <p class="sub" style="margin-bottom:12px;">Defaults to today. Change this to backdate statements — it controls both the printed "Statement Date" and the statement number (e.g. 1GFG-202606-...).</p>
-    <div class="date-row">
-      <input type="date" id="statementDateInput">
-      <button class="btn-secondary" id="confirmDateBtn">Use this date</button>
-      <span id="dateConfirmedBadge" class="hidden">✓ Confirmed: <b id="dateConfirmedText"></b></span>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-badge"><span class="dot"></span> Internal Tool</div>
+      <h1>Employee Deduction<br>Statement <span class="accent">Generator.</span></h1>
+      <p>Upload a census file, get one branded PDF statement per company plus a data-review report. Everything runs in your browser — no file ever leaves this page.</p>
+      <div class="hero-actions">
+        <a href="#upload" class="btn btn-primary">Get Started →</a>
+        <a href="#how-it-works" class="btn btn-outline">How it works</a>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="card">
-    <h2>2. Upload your file</h2>
-    <div id="dropzone">
-      <p class="big">Drop your .xlsx or .csv here</p>
-      <p>or click to browse — needs columns: Company, First Name, Last Name, Status, Employee ID, SIMERP, FGP, FGP Amount, Policy Provider, Eligible Policy</p>
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- How It Works -->
+    <div class="section" id="how-it-works">
+      <div class="section-header">
+        <div class="section-number">?</div>
+        <div class="section-title-group">
+          <h2>How it rolls up</h2>
+          <p>Understanding the calculation logic behind the scenes</p>
+        </div>
+      </div>
+      <div class="rules-grid">
+        <div class="rule-card">
+          <h4>Virtual</h4>
+          <p>Every row's SIMERP price, summed</p>
+        </div>
+        <div class="rule-card">
+          <h4>In-Person</h4>
+          <p>FGP Amount for rows tagged MEC or MEC+, summed</p>
+        </div>
+        <div class="rule-card">
+          <h4>Wholelife</h4>
+          <p>Eligible Policy amount, summed</p>
+        </div>
+        <div class="rule-card">
+          <h4>Test Companies</h4>
+          <p>Companies with "test" in the name are skipped entirely</p>
+        </div>
+        <div class="rule-card">
+          <h4>Review Flag</h4>
+          <p>Rows missing SIMERP or FGP are held back and listed in a Needs Review PDF (a missing Employee ID alone does not hold a row back)</p>
+        </div>
+      </div>
     </div>
-    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-    <label class="checkbox-row">
-      <input type="checkbox" id="rollupToggle">
-      Generate Whole 1GFG Rollup instead (one line per company, broken down by product)
-    </label>
-    <div id="status"></div>
-    <div id="error"></div>
-  </div>
 
-  <div class="card hidden" id="resultsCard">
-    <h2>3. Results</h2>
-    <div class="stat-grid" id="statGrid">
-      <div class="stat"><div class="label">Companies</div><div class="value" id="statCompanies">0</div></div>
-      <div class="stat"><div class="label">Total employees billed</div><div class="value" id="statEmployees">0</div></div>
+    <!-- Step 1: Date -->
+    <div class="section section-dark" id="date">
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <div class="section-title-group">
+          <h2>Statement date</h2>
+          <p>Defaults to today. Change to backdate statements — it controls both the printed "Statement Date" and the statement number (e.g. 1GFG-202606-...).</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Statement Date</label>
+        <input type="date" class="form-input" id="statementDateInput">
+      </div>
+      <div class="date-actions">
+        <button class="btn btn-outline btn-sm" id="confirmDateBtn">Use this date</button>
+        <span id="dateConfirmedBadge" class="hidden" style="font-size:0.875rem; color: var(--green-400); font-weight:600;">✓ Confirmed: <b id="dateConfirmedText"></b></span>
+      </div>
+    </div>
 
-      <div class="stat"><div class="label">Grand total</div><div class="value" id="statTotal">$0</div></div>
-      <div class="stat warn"><div class="label">Rows flagged for review</div><div class="value" id="statFlagged">0</div></div>
-    </div>
-    <div class="btn-row" id="standardBtnRow">
-      <button class="btn-primary" id="downloadAllBtn">Download all statements (ZIP)</button>
-      <button class="btn-secondary" id="downloadReviewBtn">Download needs-review PDF</button>
-    </div>
-    <div class="btn-row hidden" id="rollupBtnRow">
-      <button class="btn-primary" id="downloadRollupPdfBtn">Download rollup (PDF)</button>
-      <button class="btn-secondary" id="downloadRollupCsvBtn">Download rollup (CSV)</button>
-    </div>
-    <div style="margin-top:20px; max-height:520px; overflow-y:auto;" id="standardTableWrap">
-      <table>
-        <thead><tr><th>Company</th><th class="num">Employees</th><th class="num">Total</th><th></th></tr></thead>
-        <tbody id="companyTableBody"></tbody>
-      </table>
-    </div>
-    <div style="margin-top:20px; max-height:520px; overflow:auto;" class="hidden" id="rollupTableWrap"></div>
-  </div>
-</div>
+    <!-- Step 2: Upload -->
+    <div class="section" id="upload">
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <div class="section-title-group">
+          <h2>Upload your file</h2>
+          <p>Drop your .xlsx or .csv file below</p>
+        </div>
+      </div>
 
-<script>
+      <div class="drop-zone" id="dropzone">
+        <div class="drop-zone-icon">📄</div>
+        <h3>Drop your file here</h3>
+        <p>or click to browse</p>
+        <span class="file-types">.xlsx, .csv</span>
+      </div>
+      <input type="file" class="file-input" id="fileInput" accept=".xlsx,.xls,.csv">
+
+      <div class="columns-tag">
+        <span class="column-tag required">Company</span>
+        <span class="column-tag required">First Name</span>
+        <span class="column-tag required">Last Name</span>
+        <span class="column-tag">Status</span>
+        <span class="column-tag">Employee ID</span>
+        <span class="column-tag required">SIMERP</span>
+        <span class="column-tag required">FGP</span>
+        <span class="column-tag required">FGP Amount</span>
+        <span class="column-tag required">Policy Provider</span>
+        <span class="column-tag required">Eligible Policy</span>
+      </div>
+
+      <label class="checkbox-wrapper" style="margin-top: 1.5rem;">
+        <input type="checkbox" id="rollupToggle">
+        <span>Generate Whole 1GFG Rollup instead (one line per company, broken down by product)</span>
+      </label>
+
+      <div id="status"></div>
+      <div id="error"></div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div class="section hidden" id="resultsCard">
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <div class="section-title-group">
+          <h2>Results</h2>
+          <p>Review and download generated statements</p>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="statGrid">
+        <div class="stat-card">
+          <div class="stat-label">Companies</div>
+          <div class="stat-value" id="statCompanies">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total employees billed</div>
+          <div class="stat-value" id="statEmployees">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Grand total</div>
+          <div class="stat-value accent" id="statTotal">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Rows flagged for review</div>
+          <div class="stat-value warning" id="statFlagged">0</div>
+        </div>
+      </div>
+
+      <div class="actions-bar" id="standardBtnRow">
+        <button class="btn btn-primary" id="downloadAllBtn"><span>📦</span> Download all statements (ZIP)</button>
+        <button class="btn btn-dark btn-sm" id="downloadReviewBtn"><span>🔍</span> Download needs-review PDF</button>
+      </div>
+      <div class="actions-bar hidden" id="rollupBtnRow">
+        <button class="btn btn-primary" id="downloadRollupPdfBtn"><span>📄</span> Download rollup (PDF)</button>
+        <button class="btn btn-dark btn-sm" id="downloadRollupCsvBtn"><span>📊</span> Download rollup (CSV)</button>
+      </div>
+
+      <div style="max-height:520px; overflow-y:auto;" id="standardTableWrap" class="table-container">
+        <table class="data-table">
+          <thead><tr><th>Company</th><th class="num">Employees</th><th class="num">Total</th><th></th></tr></thead>
+          <tbody id="companyTableBody"></tbody>
+        </table>
+      </div>
+      <div style="max-height:520px; overflow:auto;" class="hidden" id="rollupTableWrap"></div>
+    </div>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <span id="footerYear"></span> First Gen Health. All rights reserved.</p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">99 Wall Street, Suite 5012, New York, NY 10005 | <a href="mailto:help@firstgenhealth.com">help@firstgenhealth.com</a></p>
+  </footer>
+
+  <script>
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+
 const REQUIRED_COLS = ["Company","First Name","Last Name","SIMERP","FGP","FGP Amount","Policy Provider","Eligible Policy"];
 const OPTIONAL_COLS = ["Status","Employee ID"];
 const COLUMN_ALIASES = {
@@ -196,15 +524,24 @@ const COLUMN_ALIASES = {
   "Policy Provider": ["policyprovider","wlprovider","wholelifeprovider"],
   "Eligible Policy": ["eligiblepolicy","eligiblepolicymonthly"],
 };
-const BRAND_HEX = [41, 144, 233];
-const ACCENT_FILL_HEX = [232, 241, 252];
-const DARK_HEX = [26, 43, 60];
+const BRAND_HEX = [0, 180, 216];       // cyan-500
+const ACCENT_FILL_HEX = [230, 248, 252]; // cyan-100
+const DARK_HEX = [10, 22, 40];         // navy-900
 
 const COMPANY_INFO = {
   name: "First Gen Health",
-  address: ["123 Placeholder St, Suite 100", "Jamesville, NY 13078"],
-  contact: "billing@1gfg.com | (555) 555-0100"
+  address: ["99 Wall Street, Suite 5012", "New York, NY 10005"],
+  contact: "help@firstgenhealth.com"
 };
+
+const toastContainer = document.getElementById('toastContainer');
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
 
 let state = null;
 document.getElementById('rollupToggle').addEventListener('change', () => {
@@ -232,6 +569,7 @@ document.getElementById('confirmDateBtn').addEventListener('click', () => {
   const badge = document.getElementById('dateConfirmedBadge');
   document.getElementById('dateConfirmedText').textContent = confirmedStatementDate.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
   badge.classList.remove('hidden');
+  showToast('Statement date set to ' + document.getElementById('dateConfirmedText').textContent, 'info');
   if (state) renderResults(state); // re-render so any visible PDFs reflect the new date on next download
 });
 
@@ -241,11 +579,11 @@ const statusEl = document.getElementById('status');
 const errorEl = document.getElementById('error');
 
 dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
-  dropzone.classList.remove('drag');
+  dropzone.classList.remove('drag-over');
   if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
@@ -320,6 +658,7 @@ function handleFile(file) {
       if (missing.length) {
         showError('Missing required column(s): ' + missing.join(', ') + '. Found columns: ' + headers.join(', '));
         setStatus('');
+        showToast('Missing required column(s)', 'error');
         return;
       }
 
@@ -328,6 +667,7 @@ function handleFile(file) {
     } catch (err) {
       showError('Could not read this file: ' + err.message);
       setStatus('');
+      showToast('Could not read this file', 'error');
     }
   };
   reader.readAsArrayBuffer(file);
@@ -403,6 +743,7 @@ function processRows(rawRows, colmap) {
   renderResults(state);
   const inactiveNote = hasStatusColumn ? (' (' + inactiveCount.toLocaleString('en-US') + ' inactive employee(s) excluded)') : '';
   setStatus('Done. ' + companies.length + ' companies ready.' + inactiveNote);
+  showToast(`Ready — ${companies.length} compan${companies.length === 1 ? 'y' : 'ies'} processed`, 'success');
 }
 
 function computeSummary(sub) {
@@ -531,7 +872,7 @@ function renderStandardTable(st) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${escapeHtml(c.company)}</td>
       <td class="num">${c.summary.employeeCount}</td>
-      <td class="num">${fmtMoney(c.summary.grandTotal)}</td>
+      <td class="num amount">${fmtMoney(c.summary.grandTotal)}</td>
       <td><a class="dl-link" data-idx="${idx}">Download PDF</a></td>`;
     tbody.appendChild(tr);
   });
@@ -541,6 +882,7 @@ function renderStandardTable(st) {
       const c = st.companies[idx];
       const doc = buildStatementPDF(c.company, c.rows, c.summary);
       doc.save(safeFilename(c.company) + '.pdf');
+      showToast(`${c.company} statement downloaded`, 'success');
     });
   });
 }
@@ -722,7 +1064,7 @@ function buildStatementPDF(company, rows, summary) {
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
   doc.setTextColor(120,120,120);
-  doc.text('Payment due within 30 days of statement date. Remit to First Gen Health. Questions? billing@1gfg.com.', 40, afterY);
+  doc.text('Payment due within 30 days of statement date. Remit to First Gen Health. Questions? help@firstgenhealth.com.', 40, afterY);
 
   doc.addPage();
   let y2 = drawHeader(doc, company);
@@ -767,7 +1109,7 @@ function buildReviewPDF(excluded) {
   const doc = new jsPDF({unit:'pt', format:'letter'});
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
-  doc.setTextColor(192,0,0);
+  doc.setTextColor(239,68,68);
   doc.text('Needs Review — Excluded From Statements', 40, 50);
   doc.setFont('helvetica','normal');
   doc.setFontSize(9.5);
@@ -788,7 +1130,7 @@ function buildReviewPDF(excluded) {
       if (y > 700) { doc.addPage(); y = 50; }
       doc.setFont('helvetica','bold');
       doc.setFontSize(11);
-      doc.setTextColor(26,43,60);
+      doc.setTextColor(...DARK_HEX);
       doc.text(`${c} (${sub.length} row(s))`, 40, y);
       y += 8;
       doc.autoTable({
@@ -797,7 +1139,7 @@ function buildReviewPDF(excluded) {
         head: [['Employee ID','First Name','Last Name','Missing']],
         body: sub.map(r => [r.EmployeeID ? String(r.EmployeeID) : '-', r.FirstName||'', r.LastName||'', r.Missing]),
         styles: {font:'helvetica', fontSize:8.5, cellPadding:4},
-        headStyles: {fillColor:[242,210,210], textColor:[60,20,20], fontStyle:'bold'},
+        headStyles: {fillColor:[254,226,226], textColor:[153,27,27], fontStyle:'bold'},
       });
       y = doc.lastAutoTable.finalY + 20;
     }
@@ -859,7 +1201,7 @@ function buildRollupPDF(rows) {
       const isSubtotalRow = data.row.section === 'body' && typeof data.row.raw[0] === 'string' && String(data.row.raw[0]).startsWith('PG ');
       const isGrandTotal = data.row.section === 'body' && typeof data.row.raw[0] === 'string' && String(data.row.raw[0]).startsWith('GRAND TOTAL');
       if (isSubtotalRow) { data.cell.styles.fillColor = ACCENT_FILL_HEX; data.cell.styles.fontStyle = 'bold'; }
-      if (isGrandTotal) { data.cell.styles.fillColor = [215,230,251]; data.cell.styles.fontStyle = 'bold'; }
+      if (isGrandTotal) { data.cell.styles.fillColor = [205,238,246]; data.cell.styles.fontStyle = 'bold'; }
     },
   });
   return doc;
@@ -886,6 +1228,7 @@ document.getElementById('downloadRollupPdfBtn').addEventListener('click', () => 
   if (!state) return;
   const doc = buildRollupPDF(state.rollupRows);
   doc.save('Whole_1GFG_Rollup.pdf');
+  showToast('Rollup PDF downloaded', 'success');
 });
 document.getElementById('downloadRollupCsvBtn').addEventListener('click', () => {
   if (!state) return;
@@ -896,12 +1239,14 @@ document.getElementById('downloadRollupCsvBtn').addEventListener('click', () => 
   a.href = url; a.download = 'Whole_1GFG_Rollup.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  showToast('Rollup CSV downloaded', 'success');
 });
 
 document.getElementById('downloadReviewBtn').addEventListener('click', () => {
   if (!state) return;
   const doc = buildReviewPDF(state.excluded);
   doc.save('Needs_Review.pdf');
+  showToast('Needs-Review PDF downloaded', 'success');
 });
 
 document.getElementById('downloadAllBtn').addEventListener('click', () => {
@@ -933,8 +1278,26 @@ async function buildAndDownloadZip() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   btn.disabled = false;
-  btn.textContent = 'Download all statements (ZIP)';
+  btn.innerHTML = '<span>📦</span> Download all statements (ZIP)';
+  showToast('ZIP downloaded', 'success');
 }
-</script>
+
+// ---- Keyboard shortcuts ----
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+    e.preventDefault();
+    fileInput.click();
+  }
+});
+
+// ---- Smooth scroll for anchor links ----
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+  </script>
 </body>
 </html>
